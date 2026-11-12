@@ -8,6 +8,7 @@
 [[headers]]
   for = "/*"
   [headers.values]
-    X-Frame-Options = "DENY"
+    # Autorise l'affichage intégré (iframe) uniquement dans l'application elle-même et dans le Lewys Hub
+    Content-Security-Policy = "frame-ancestors 'self' https://lewys-hub-officiel.netlify.app"
     X-Content-Type-Options = "nosniff"
     Referrer-Policy = "same-origin"
