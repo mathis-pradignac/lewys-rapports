@@ -451,8 +451,36 @@ table.rep-table tr.total-highlight td{background:var(--periwinkle-soft);border-t
 .login-card.active{border-color:var(--indigo);box-shadow:0 0 0 3px var(--periwinkle-soft);}
 .remember{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--ink-soft);}
 .history-head select{width:auto;border-radius:999px;}
-.hidden{display:none !important;}
+
 #profileOverlay{z-index:70;}
+
+/* ---------- Synchronisation Google Drive ---------- */
+.sync-box{display:flex;align-items:center;gap:12px;padding:14px 16px;border-radius:12px;border:1px solid var(--line);background:#fff;margin-bottom:14px;font-size:13px;line-height:1.45;}
+.sync-box .ico{width:30px;height:30px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:14px;background:var(--periwinkle-soft);color:var(--indigo);}
+.sync-box b{display:block;font-size:14px;color:var(--ink);}
+.sync-box span.sub{color:var(--ink-soft);}
+.sync-box button{margin-left:auto;flex-shrink:0;padding:7px 14px;font-size:13px;}
+.sync-box.ok{border-color:#CFE6D9;background:#F4FAF6;}
+.sync-box.ok .ico{background:var(--positive);color:#fff;}
+.sync-box.error{border-color:#EBC9BF;background:#FDF5F2;}
+.sync-box.error .ico{background:var(--negative);color:#fff;}
+.sync-box.loading .ico{animation:pulse 1s ease-in-out infinite alternate;}
+@keyframes pulse{from{opacity:.4}to{opacity:1}}
+
+
+/* ---------- Points forts / axes d'amélioration ---------- */
+.qual-pos-list li.qual-item,.qual-neg-list li.qual-item{display:flex;align-items:flex-start;gap:8px;}
+.qual-txt{flex:1;outline:none;min-height:1.3em;border-radius:3px;}
+.qual-txt:empty::before{content:"Saisissez le point…";color:var(--ink-soft);font-weight:400;opacity:.7;}
+.qual-txt:focus{box-shadow:0 0 0 2px rgba(52,33,201,0.25);}
+.qual-del{flex-shrink:0;width:22px;height:22px;padding:0;border-radius:50%;border:none;background:transparent;color:inherit;font-size:16px;line-height:1;opacity:.45;cursor:pointer;}
+.qual-del:hover{opacity:1;background:rgba(0,0,0,0.06);}
+.qual-add{display:inline-block;margin-top:2px;padding:6px 12px;font-size:12.5px;font-weight:600;border-radius:999px;border:1px dashed var(--line);background:#fff;color:var(--ink-soft);}
+.qual-add:hover{border-color:var(--indigo);color:var(--indigo);opacity:1;}
+@media print{.qual-del,.qual-add{display:none !important;}}
+
+.app-version{margin-top:28px;font-size:11.5px;color:#9A99A6;}
+.hidden{display:none !important;}
 
 </style>
 </head>
@@ -499,7 +527,8 @@ table.rep-table tr.total-highlight td{background:var(--periwinkle-soft);border-t
     <div class="steps">
       <div class="step">
         <div class="step-head"><span class="step-num">01</span><h2>Fichier central</h2></div>
-        <p class="help">Export .xlsx du Google Sheet « Stats hôtels ». Le fichier est lu dans votre navigateur : il n'est envoyé nulle part.</p>
+        <div class="sync-box hidden" id="syncBox"></div>
+        <p class="help" id="fileHelp">Export .xlsx du Google Sheet « Stats hôtels ». Le fichier est lu dans votre navigateur : il n'est envoyé nulle part.</p>
         <div class="dropzone" id="dropzone">
           <input type="file" id="fileInput" accept=".xlsx">
           <span id="dropzoneText"><strong>Déposez le fichier ici</strong>ou cliquez pour le choisir</span>
@@ -538,6 +567,7 @@ table.rep-table tr.total-highlight td{background:var(--periwinkle-soft);border-t
       <button id="generateBtn" class="primary" disabled>Générer le rapport</button>
     </div>
     <div class="status status-line" id="status">En attente du fichier central.</div>
+    <div class="app-version" id="appVersion"></div>
   </div>
 </section>
 
@@ -787,9 +817,11 @@ function findSheet(names, wanted){ const norm = s => s.trim().toLowerCase(); ret
 function handleFile(file){
   setStatus('Lecture du fichier…');
   const reader = new FileReader();
-  reader.onload = evt => {
+  reader.onload = evt => { loadWorkbookData(new Uint8Array(evt.target.result), {label: file.name, source: 'file'}); };
+  reader.readAsArrayBuffer(file);
+}
+function loadWorkbookData(data, info){
     try{
-      const data = new Uint8Array(evt.target.result);
       workbook = XLSX.read(data, {type:'array'});
       const gmName = findSheet(workbook.SheetNames, GM_SHEET);
       const n1Name = findSheet(workbook.SheetNames, N1_SHEET);
@@ -814,27 +846,34 @@ function handleFile(file){
         if (v && String(v).trim()) hotels.push(String(v).trim());
       }
       if (!hotels.length){ setStatus("Aucun hôtel trouvé dans l'onglet 'Liste Hôtels'.", 'err'); return; }
+      const prevHotel = hotelSelect.disabled ? null : hotelSelect.value;
+      const prevMonth = monthSelect.disabled ? null : monthSelect.value;
       hotelSelect.innerHTML = hotels.map(h => `<option>${escHTML(h)}</option>`).join('');
+      if (prevHotel && hotels.includes(prevHotel)) hotelSelect.value = prevHotel;
       onHotelsLoaded(hotels);
       hotelSelect.disabled = false;
 
       monthSelect.innerHTML = MONTHS.map((m,i) => `<option value="${i}">${m} 2026</option>`).join('');
       monthSelect.disabled = false;
-      { const d = new Date(); monthSelect.value = String(d.getFullYear() > 2026 ? 11 : Math.max(0, d.getMonth() - 1)); }
+      if (prevMonth !== null) monthSelect.value = prevMonth;
+      else { const d = new Date(); monthSelect.value = String(d.getFullYear() > 2026 ? 11 : Math.max(0, d.getMonth() - 1)); }
 
       generateBtn.disabled = false;
       configBtn.disabled = false;
       dropzone.classList.add('has-file');
-      dropzoneText.innerHTML = '<strong>' + escHTML(file.name) + '</strong>Fichier chargé · cliquez pour en changer';
+      dropzoneText.innerHTML = info.source === 'drive'
+        ? '<strong>Utiliser un autre fichier</strong>Déposez un .xlsx pour remplacer temporairement la version Google Drive'
+        : '<strong>' + escHTML(info.label) + '</strong>Fichier chargé · cliquez pour en changer';
+      onWorkbookLoaded(info);
       paramsDirty = true;
       updateGenSummary();
-      setStatus('Fichier chargé — ' + hotels.length + ' hôtel(s) trouvé(s).', 'ok');
+      setStatus((info.source === 'drive' ? 'Fichier central récupéré depuis Google Drive — ' : 'Fichier chargé — ') + hotels.length + ' hôtel(s) trouvé(s).', 'ok');
+      return true;
     }catch(err){
       console.error(err);
       setStatus('Erreur de lecture du fichier : ' + err.message, 'err');
     }
-  };
-  reader.readAsArrayBuffer(file);
+    return false;
 }
 
 function findBlockStart(grid, hotelName){
@@ -1443,11 +1482,11 @@ function buildQualitySection(hotelName, endIdx){
   const strengths = allRated.slice(0,3);
   const weaknesses = allRated.slice(-3).reverse().filter(s => !strengths.includes(s));
   const strengthsHTML = strengths.length
-    ? strengths.map(s => `<li>${s.label} — ${s.display}</li>`).join('')
-    : '<li>Pas assez de données</li>';
+    ? strengths.map(s => qualItemHTML(`${s.label} — ${s.display}`)).join('')
+    : qualItemHTML('Pas assez de données');
   const weaknessesHTML = weaknesses.length
-    ? weaknesses.map(s => `<li>${s.label} — ${s.display}</li>`).join('')
-    : '<li>Aucun point faible notable identifié.</li>';
+    ? weaknesses.map(s => qualItemHTML(`${s.label} — ${s.display}`)).join('')
+    : qualItemHTML('Aucun point faible notable identifié.');
 
   const ponderVals = qMonths.slice(0,count).map(m=>m.pondere).filter(v=>v>0);
   const trend = ponderVals.length >= 2 ? ponderVals[ponderVals.length-1] - ponderVals[0] : 0;
@@ -1518,10 +1557,10 @@ function buildQualitySection(hotelName, endIdx){
       ${hasN1 ? `<div class="keep"><div class="section-title">Évolution vs N-1</div>${yoyHTML}</div>` : ''}
 
       <div style="break-inside:avoid;page-break-inside:avoid;">
-        <div class="section-title">Points forts &amp; axes d'amélioration</div>
+        <div class="section-title">Points forts &amp; axes d'amélioration<span class="hint">cliquez un point pour le modifier, × pour le supprimer</span></div>
         <div class="commentary">
-          <div><h4>Points forts (+)</h4><ul class="qual-pos-list">${strengthsHTML}</ul></div>
-          <div><h4>Axes d'amélioration (-)</h4><ul class="qual-neg-list">${weaknessesHTML}</ul></div>
+          <div><h4>Points forts (+)</h4><ul class="qual-pos-list" data-edit-id="qualPos">${strengthsHTML}</ul><button type="button" class="qual-add hide-print" data-list="qualPos">+ Ajouter un point fort</button></div>
+          <div><h4>Axes d'amélioration (-)</h4><ul class="qual-neg-list" data-edit-id="qualNeg">${weaknessesHTML}</ul><button type="button" class="qual-add hide-print" data-list="qualNeg">+ Ajouter un axe d'amélioration</button></div>
         </div>
       </div>
 
@@ -1816,6 +1855,7 @@ const LS_ACCESS = 'lewys_access_code';
 const LS_HOTELS = 'lewys_hotels_v1';
 const LS_CHECKLIST = 'lewys_checklist_v1';
 const LOGO_TOKEN = '__LEWYS_LOGO__';
+const APP_VERSION = '2026-11-12';
 
 let storageMode = 'pending';           // 'cloud' (Netlify) | 'local' (ce navigateur)
 let profiles = [];
@@ -1843,6 +1883,7 @@ NAVS.report.addEventListener('click', () => showView('report'));
 NAVS.history.addEventListener('click', () => showView('history'));
 document.getElementById('backHomeBtn').addEventListener('click', () => showView('home'));
 document.getElementById('brandLogo').src = LEWYS_LOGO;
+document.getElementById('appVersion').textContent = 'Version du ' + APP_VERSION.split('-').reverse().join('/');
 
 function reportReady(){
   NAVS.report.disabled = false;
@@ -2173,6 +2214,63 @@ document.getElementById('clGrid').addEventListener('click', async e => {
   }
 });
 
+/* ---------------- Fichier central lu directement depuis Google Drive ---------------- */
+let sheetState = 'off';     // off (non configuré) | loading | ok | error | manual
+let sheetInfo = null, sheetError = '';
+const SHEET_MAX_AGE = 10 * 60 * 1000;   // au-delà, on récupère la dernière version avant de générer
+function fmtShort(d){ return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'2-digit'}) + ' à ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'}); }
+function renderSyncBox(){
+  const box = document.getElementById('syncBox');
+  const help = document.getElementById('fileHelp');
+  if (sheetState === 'off'){ box.className = 'sync-box hidden'; return; }
+  help.textContent = "Le fichier central est récupéré automatiquement depuis Google Drive à l'ouverture. Vous pouvez aussi déposer un fichier .xlsx pour l'utiliser ponctuellement à la place.";
+  let html = '';
+  if (sheetState === 'loading'){
+    html = `<span class="ico">↻</span><div><b>Récupération depuis Google Drive…</b><span class="sub">Lecture de la dernière version du fichier central.</span></div>`;
+  } else if (sheetState === 'ok' && sheetInfo){
+    const mod = sheetInfo.modified ? new Date(sheetInfo.modified) : null;
+    html = `<span class="ico">✓</span><div><b>Synchronisé avec Google Drive</b><span class="sub">${escHTML(sheetInfo.label)}${mod && !isNaN(mod) ? ' · modifié le ' + fmtShort(mod) : ''} · récupéré à ${sheetInfo.loadedAt.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})}</span></div><button type="button" class="secondary" data-sync="1">Actualiser</button>`;
+  } else if (sheetState === 'manual'){
+    html = `<span class="ico">↥</span><div><b>Fichier déposé manuellement</b><span class="sub">${escHTML(sheetInfo ? sheetInfo.label : '')} remplace la version Google Drive pour cette session.</span></div><button type="button" class="secondary" data-sync="1">Revenir à Google Drive</button>`;
+  } else {
+    html = `<span class="ico">!</span><div><b>Lecture depuis Google Drive impossible</b><span class="sub">${escHTML(sheetError)} En attendant, déposez le fichier ci-dessous.</span></div><button type="button" class="secondary" data-sync="1">Réessayer</button>`;
+  }
+  box.className = 'sync-box ' + sheetState;
+  box.innerHTML = html;
+}
+document.getElementById('syncBox').addEventListener('click', e => { if (e.target.closest('[data-sync]')) syncSheet(); });
+function onWorkbookLoaded(info){
+  if (info.source === 'file' && sheetState !== 'off'){ sheetState = 'manual'; sheetInfo = {...info, loadedAt: new Date()}; renderSyncBox(); }
+}
+async function syncSheet(){
+  if (storageMode !== 'cloud'){ sheetState = 'off'; renderSyncBox(); return false; }
+  const wasOff = sheetState === 'off';
+  sheetState = 'loading'; renderSyncBox();
+  try{
+    const headers = {};
+    const code = localStorage.getItem(LS_ACCESS);
+    if (code) headers['x-access-code'] = code;
+    const res = await fetch('/api/sheet', {headers, cache: 'no-store'});
+    const type = res.headers.get('content-type') || '';
+    if (res.status === 404){ sheetState = 'off'; renderSyncBox(); return false; }   // lecture Drive non configurée
+    if (!res.ok){
+      let msg = 'Erreur ' + res.status + '.';
+      if (type.includes('json')){ try{ const j = await res.json(); if (j.error) msg = j.error; }catch(e){} }
+      throw new Error(msg);
+    }
+    const buf = new Uint8Array(await res.arrayBuffer());
+    const info = {source: 'drive', label: decodeURIComponent(res.headers.get('x-sheet-name') || 'Fichier central'), modified: res.headers.get('x-sheet-modified') || ''};
+    if (!loadWorkbookData(buf, info)) throw new Error("Le fichier reçu n'a pas la structure du fichier central.");
+    sheetInfo = {...info, loadedAt: new Date()};
+    sheetState = 'ok';
+  }catch(err){
+    sheetState = 'error'; sheetError = err.message;
+    if (wasOff && !gmGrid) setStatus('Lecture depuis Google Drive impossible : déposez le fichier central manuellement.', 'err');
+  }
+  renderSyncBox();
+  return sheetState === 'ok';
+}
+
 /* ---------------- Accueil ---------------- */
 function updateGenSummary(){
   const el = document.getElementById('genSummary');
@@ -2186,7 +2284,13 @@ monthSelect.addEventListener('change', updateGenSummary);
 unitHtBtn.addEventListener('click', updateGenSummary);
 unitTtcBtn.addEventListener('click', updateGenSummary);
 
-generateBtn.addEventListener('click', () => {
+generateBtn.addEventListener('click', async () => {
+  // version Drive récupérée il y a plus de 10 min : on reprend la dernière avant de générer
+  if (sheetState === 'ok' && sheetInfo && Date.now() - sheetInfo.loadedAt > SHEET_MAX_AGE){
+    generateBtn.disabled = true;
+    await syncSheet();
+    generateBtn.disabled = false;
+  }
   const hotelName = hotelSelect.value;
   const endIdx = parseInt(monthSelect.value, 10);
   if (!hotelName){ setStatus('Choisissez un hôtel.', 'err'); return; }
@@ -2201,6 +2305,66 @@ generateBtn.addEventListener('click', () => {
 });
 ['commissionRateInput'].forEach(id => document.getElementById(id).addEventListener('input', () => { paramsDirty = true; }));
 exportBtn.addEventListener('click', () => { fitReportTables(); window.print(); });
+
+/* ---------------- Points forts / axes d'amélioration modifiables ---------------- */
+function qualItemHTML(text){
+  return `<li class="qual-item"><span class="qual-txt" contenteditable="true" spellcheck="true">${text}</span><button type="button" class="qual-del hide-print" title="Supprimer ce point" aria-label="Supprimer ce point">×</button></li>`;
+}
+function focusEnd(el){
+  el.focus();
+  const r = document.createRange(); r.selectNodeContents(el); r.collapse(false);
+  const sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+}
+function addQualItem(list, after){
+  const tmp = document.createElement('ul');
+  tmp.innerHTML = qualItemHTML('');
+  const li = tmp.firstElementChild;
+  if (after && after.parentElement === list) after.after(li); else list.appendChild(li);
+  focusEnd(li.querySelector('.qual-txt'));
+  return li;
+}
+mainEl.addEventListener('click', e => {
+  const del = e.target.closest('.qual-del');
+  if (del){ del.closest('li').remove(); return; }
+  const add = e.target.closest('.qual-add');
+  if (add){
+    const list = add.parentElement.querySelector(`ul[data-edit-id="${add.dataset.list}"]`);
+    if (list) addQualItem(list);
+  }
+});
+mainEl.addEventListener('keydown', e => {
+  const txt = e.target.closest && e.target.closest('.qual-txt');
+  if (!txt) return;
+  const li = txt.closest('li');
+  if (e.key === 'Enter'){ e.preventDefault(); addQualItem(li.parentElement, li); }
+  else if (e.key === 'Backspace' && !txt.textContent.trim()){
+    e.preventDefault();
+    const prev = li.previousElementSibling;
+    li.remove();
+    if (prev) focusEnd(prev.querySelector('.qual-txt'));
+  }
+});
+// Rapports enregistrés avant cette fonctionnalité : on ajoute les boutons aux anciennes listes
+function upgradeQualLists(){
+  [['qual-pos-list', 'qualPos', '+ Ajouter un point fort'], ['qual-neg-list', 'qualNeg', "+ Ajouter un axe d'amélioration"]].forEach(([cls, id, label]) => {
+    mainEl.querySelectorAll('ul.' + cls).forEach(ul => {
+      ul.setAttribute('data-edit-id', id);
+      [...ul.children].forEach(li => {
+        if (li.classList.contains('qual-item')) return;
+        const tmp = document.createElement('ul');
+        tmp.innerHTML = qualItemHTML(li.innerHTML);
+        li.replaceWith(tmp.firstElementChild);
+      });
+      const next = ul.nextElementSibling;
+      if (!next || !next.classList.contains('qual-add'))
+        ul.insertAdjacentHTML('afterend', `<button type="button" class="qual-add hide-print" data-list="${id}">${label}</button>`);
+    });
+  });
+}
+// les points laissés vides ne sont pas imprimés
+window.addEventListener('beforeprint', () => {
+  mainEl.querySelectorAll('.qual-item').forEach(li => { if (!li.textContent.replace('×','').trim()) li.remove(); });
+});
 
 /* ---------------- Enregistrement ---------------- */
 const saveHistoryBtn = document.getElementById('saveHistoryBtn');
@@ -2342,6 +2506,7 @@ async function openHistoryEntry(id){
   if (!e) throw new Error('rapport introuvable');
   if (e.snapshot){
     mainEl.innerHTML = e.snapshot.split(LOGO_TOKEN).join(LEWYS_LOGO);
+    upgradeQualLists();
     lastHotelName = e.hotelName; lastEndIdx = e.endIdx; lastCommissionRate = e.commissionRate;
     if (e.rowConfig) rowConfig = JSON.parse(JSON.stringify(e.rowConfig));
     currentUnitMode = e.unitMode || 'HT';
@@ -2355,6 +2520,7 @@ async function openHistoryEntry(id){
     renderReport(e.hotelName, e.endIdx);
     if (!lastRenderOk) throw new Error("hôtel introuvable dans le fichier central chargé");
     applyEditedTexts(e.editedTexts);
+    upgradeQualLists();
   }
   pageOrientation = e.orientation === 'landscape' ? 'landscape' : 'portrait';
   applyPageOrientation();
@@ -2374,6 +2540,7 @@ async function openHistoryEntry(id){
   let saved = null;
   try{ saved = localStorage.getItem(LS_ACTIVE_PROFILE) || sessionStorage.getItem(LS_ACTIVE_PROFILE); }catch(e){}
   activeProfileId = profiles.some(p => p.id === saved) ? saved : null;
+  syncSheet();                         // fichier central depuis Google Drive (si configuré)
   renderProfiles();
   if (!activeProfileId) openLogin();   // aucun profil mémorisé sur ce poste : on demande qui se connecte
   refreshChecklist();
