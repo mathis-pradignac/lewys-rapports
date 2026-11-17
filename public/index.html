@@ -612,6 +612,7 @@ table.rep-table tr.total-highlight td{background:var(--periwinkle-soft);border-t
       <div class="tools">
         <select id="historyMonth"><option value="">Tous les mois</option></select>
         <input type="search" id="historySearch" placeholder="Rechercher un hôtel…">
+        <button type="button" class="secondary hidden" id="migrateBtn">Récupérer un ancien historique</button>
       </div>
     </div>
     <div id="historyNotice"></div>
@@ -673,6 +674,21 @@ table.rep-table tr.total-highlight td{background:var(--periwinkle-soft);border-t
       <button type="button" class="ghost left" id="loginSkipBtn">Continuer sans profil</button>
       <button type="button" class="secondary hidden" id="loginEditBtn">Modifier mon profil</button>
       <button type="button" class="primary" id="loginNewBtn">Créer mon profil</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ RÉCUPÉRATION D'UN ANCIEN SITE ============ -->
+<div class="modal-overlay hidden" id="migrateOverlay">
+  <div class="modal narrow">
+    <h3>Récupérer l'historique d'un ancien site</h3>
+    <div class="desc">Copie dans ce site les rapports, les profils, la liste des hôtels et les coches de la checklist d'un autre site Netlify du générateur. L'ancien site doit encore être en ligne ; rien n'y est supprimé. Vous pouvez relancer la récupération sans créer de doublons.</div>
+    <div class="field"><label for="migrateFrom">Adresse de l'ancien site</label><input type="text" id="migrateFrom" placeholder="https://ancien-site.netlify.app" autocomplete="off"></div>
+    <div class="field"><label for="migrateCode">Code d'accès de l'ancien site</label><input type="text" id="migrateCode" placeholder="Laisser vide s'il n'en avait pas" autocomplete="off"></div>
+    <div class="status" id="migrateStatus"></div>
+    <div class="modal-actions">
+      <button class="secondary" id="migrateCancelBtn">Fermer</button>
+      <button class="primary" id="migrateGoBtn">Récupérer</button>
     </div>
   </div>
 </div>
@@ -1871,7 +1887,7 @@ const LS_ACCESS = 'lewys_access_code';
 const LS_HOTELS = 'lewys_hotels_v1';
 const LS_CHECKLIST = 'lewys_checklist_v1';
 const LOGO_TOKEN = '__LEWYS_LOGO__';
-const APP_VERSION = '12/11/2026 (2)';
+const APP_VERSION = '12/11/2026 (3)';
 
 let storageMode = 'pending';           // 'cloud' (Netlify) | 'local' (ce navigateur)
 let profiles = [];
@@ -2547,6 +2563,7 @@ function fmtDate(iso){
   return d.toLocaleDateString('fr-FR', {day:'2-digit', month:'short', year:'numeric'}) + ' à ' + d.toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'});
 }
 async function renderHistoryPage(){
+  document.getElementById('migrateBtn').classList.toggle('hidden', storageMode !== 'cloud');
   document.getElementById('historySub').textContent = storageMode === 'cloud'
     ? "Classé par hôtel. Partagé avec toute l'équipe Lewys."
     : 'Classé par hôtel. Mode local : visible uniquement dans ce navigateur.';
@@ -2654,6 +2671,52 @@ async function openHistoryEntry(id){
   showView('report');
   setStatus(`Rapport ouvert depuis l'historique. Vous pouvez modifier les textes puis l'enregistrer à nouveau${e.legacy ? '' : ' (mise à jour du même rapport)'}.`, 'ok');
 }
+
+/* ---------------- Récupération de l'historique d'un ancien site Netlify ---------------- */
+const migrateOverlay = document.getElementById('migrateOverlay');
+const migrateStatus = document.getElementById('migrateStatus');
+function setMigrateStatus(msg, kind){ migrateStatus.textContent = msg; migrateStatus.className = 'status' + (kind ? ' ' + kind : ''); }
+async function migrateCall(payload){
+  const headers = {'Content-Type': 'application/json'};
+  const code = localStorage.getItem(LS_ACCESS);
+  if (code) headers['x-access-code'] = code;
+  const res = await fetch('/api/migrate', {method: 'POST', headers, body: JSON.stringify(payload), cache: 'no-store'});
+  let data = null;
+  try{ data = await res.json(); }catch(e){}
+  if (!res.ok || !data) throw new Error((data && data.error) || (res.status === 404 ? "La fonction de récupération n'est pas encore déployée sur ce site (fichier netlify/functions/migrate.mjs)." : 'Erreur ' + res.status));
+  return data;
+}
+document.getElementById('migrateBtn').addEventListener('click', () => { setMigrateStatus('', ''); migrateOverlay.classList.remove('hidden'); document.getElementById('migrateFrom').focus(); });
+document.getElementById('migrateCancelBtn').addEventListener('click', () => migrateOverlay.classList.add('hidden'));
+document.getElementById('migrateGoBtn').addEventListener('click', async () => {
+  let from = document.getElementById('migrateFrom').value.trim();
+  if (from && !/^https?:\/\//i.test(from)) from = 'https://' + from;
+  const code = document.getElementById('migrateCode').value.trim();
+  if (!from){ setMigrateStatus("Indiquez l'adresse de l'ancien site.", 'err'); return; }
+  const btn = document.getElementById('migrateGoBtn'); btn.disabled = true;
+  try{
+    setMigrateStatus("Connexion à l'ancien site…", '');
+    const r = await migrateCall({from, code, action: 'list'});
+    const ids = r.ids || [];
+    let done = 0, failed = 0, next = 0;
+    setMigrateStatus(`Copie des rapports : 0 / ${ids.length}…`, '');
+    async function worker(){
+      while (next < ids.length){
+        const id = ids[next++];
+        try{ await migrateCall({from, code, action: 'copy', id}); done++; }catch(e){ failed++; }
+        setMigrateStatus(`Copie des rapports : ${done + failed} / ${ids.length}…`, '');
+      }
+    }
+    await Promise.all([worker(), worker(), worker(), worker()]);
+    setMigrateStatus(`Récupération terminée : ${done} rapport(s), ${r.profiles} profil(s)${r.hotels ? ', liste des hôtels' : ''}${r.checklists ? ', checklist du mois' : ''}.${failed ? ' ' + failed + ' rapport(s) non copiés : relancez la récupération.' : ''}`, failed ? 'warn' : 'ok');
+    try{ profiles = await Store.listProfiles(); renderProfiles(); }catch(e){}
+    renderHistoryPage();
+    refreshChecklist();
+  }catch(err){
+    setMigrateStatus(err.message, 'err');
+  }
+  btn.disabled = false;
+});
 
 /* ---------------- Démarrage ---------------- */
 (async function init(){
