@@ -480,6 +480,12 @@ table.rep-table tr.total-highlight td{background:var(--periwinkle-soft);border-t
 @media print{.qual-del,.qual-add{display:none !important;}}
 
 .app-version{margin-top:28px;font-size:11.5px;color:#9A99A6;}
+
+.pdf-months{display:flex;align-items:center;gap:8px;}
+.pdf-months-lbl{font-size:12px;color:var(--ink-soft);white-space:nowrap;}
+.pdf-months .unit-toggle{width:auto;}
+.pdf-months .unit-btn{white-space:nowrap;}
+.pdf-months .unit-btn:disabled{opacity:.4;cursor:help;}
 .hidden{display:none !important;}
 
 </style>
@@ -580,6 +586,13 @@ table.rep-table tr.total-highlight td{background:var(--periwinkle-soft);border-t
     <div class="unit-toggle" title="Orientation du PDF">
       <button type="button" id="orientPortraitBtn" class="unit-btn active">Portrait</button>
       <button type="button" id="orientLandscapeBtn" class="unit-btn">Paysage</button>
+    </div>
+    <div class="pdf-months" title="Mois inclus dans l'export PDF">
+      <span class="pdf-months-lbl">Mois du PDF</span>
+      <div class="unit-toggle">
+        <button type="button" id="pdfAllBtn" class="unit-btn active">Année complète</button>
+        <button type="button" id="pdfPartnerBtn" class="unit-btn">Depuis le partenariat</button>
+      </div>
     </div>
     <button id="saveHistoryBtn" class="secondary" disabled>Enregistrer dans l'historique</button>
     <button id="exportBtn" class="primary" disabled>Exporter en PDF</button>
@@ -1058,7 +1071,7 @@ function buildMarketAnalysis(hotelName, monthLabel, occV){
   const text = `À compléter : contexte touristique et concurrentiel de la zone pour ${monthLabel}. Les indicateurs de ${hotelName} suggèrent ${trendWord} sur la période par rapport à N-1 — à recouper avec l'actualité locale (événements, saisonnalité, ouvertures concurrentes) et les tendances nationales de la distribution hôtelière.`;
   return `<p class="editable prose" data-edit-id="market" contenteditable="true">${text}</p>`;
 }
-function renderGroupedBarChart(values26, values25, count){
+function renderGroupedBarChart(values26, values25, count, start = 0){
   const W = 700, H = 230, padL = 55, padR = 15, padT = 28, padB = 30;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const maxVal = Math.max(1, ...values26, ...values25);
@@ -1083,7 +1096,7 @@ function renderGroupedBarChart(values26, values25, count){
     const y25top = padT + plotH - h25;
     bars += `<rect x="${x25.toFixed(1)}" y="${y25top.toFixed(1)}" width="${barW}" height="${h25.toFixed(1)}" fill="var(--y25)" rx="2"></rect>`;
     bars += `<rect x="${x26.toFixed(1)}" y="${y26top.toFixed(1)}" width="${barW}" height="${h26.toFixed(1)}" fill="var(--y26)" rx="2"></rect>`;
-    labels += `<text x="${gx.toFixed(1)}" y="${H - padB + 14}" font-size="9" fill="var(--ink-soft)" text-anchor="middle" font-family="DM Sans, Arial, sans-serif">${MONTHS[m].slice(0,3)}</text>`;
+    labels += `<text x="${gx.toFixed(1)}" y="${H - padB + 14}" font-size="9" fill="var(--ink-soft)" text-anchor="middle" font-family="DM Sans, Arial, sans-serif">${MONTHS[m + start].slice(0,3)}</text>`;
     const v = pctVarChart(values26[m], values25[m]);
     const topY = Math.min(y26top, y25top) - 6;
     varLabels += `<text x="${gx.toFixed(1)}" y="${Math.max(topY,10).toFixed(1)}" font-size="9.5" font-weight="600" fill="${varColor(v)}" text-anchor="middle" font-family="DM Sans, Arial, sans-serif">${fmtVarChart(v)}</text>`;
@@ -1105,28 +1118,28 @@ function renderGroupedBarChart(values26, values25, count){
 
 function buildCAChart(perMonth, count, caKey){
   const values26 = [], values25 = [];
-  for (let m = 0; m < count; m++){
+  for (let m = REPORT_START; m < count; m++){
     values26.push(perMonth[m].y26[caKey]);
     values25.push(perMonth[m].y25[caKey]);
   }
-  return renderGroupedBarChart(values26, values25, count);
+  return renderGroupedBarChart(values26, values25, values26.length, REPORT_START);
 }
 
 function buildCACumChart(perMonth, count, caKey){
   const values26 = [], values25 = [];
   let run26 = 0, run25 = 0;
-  for (let m = 0; m < count; m++){
+  for (let m = REPORT_START; m < count; m++){
     run26 += perMonth[m].y26[caKey];
     run25 += perMonth[m].y25[caKey];
     values26.push(run26);
     values25.push(run25);
   }
-  return renderGroupedBarChart(values26, values25, count);
+  return renderGroupedBarChart(values26, values25, values26.length, REPORT_START);
 }
 
 const QUAL_LINE_COLORS = {booking:'#003580', expedia:'#E8A400', google:'#D93025', tripadvisor:'#00A651'};
 
-function renderMultiLineChart(series, count, belowValues){
+function renderMultiLineChart(series, count, belowValues, start = 0){
   const W = 700, H = 340, padL = 40, padR = 15, padT = 20, padB = 46;
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const maxVal = 10, minVal = 0;
@@ -1168,7 +1181,7 @@ function renderMultiLineChart(series, count, belowValues){
   let labels = '';
   for (let m = 0; m < count; m++){
     const x = padL + m * stepX;
-    labels += `<text x="${x.toFixed(1)}" y="${H-padB+14}" font-size="9" fill="var(--ink-soft)" text-anchor="middle" font-family="DM Sans, Arial, sans-serif">${MONTHS[m].slice(0,3)}</text>`;
+    labels += `<text x="${x.toFixed(1)}" y="${H-padB+14}" font-size="9" fill="var(--ink-soft)" text-anchor="middle" font-family="DM Sans, Arial, sans-serif">${MONTHS[m + start].slice(0,3)}</text>`;
     if (belowValues){
       const bv = belowValues[m];
       labels += `<text x="${x.toFixed(1)}" y="${H-padB+28}" font-size="9.5" font-weight="600" fill="var(--ink)" text-anchor="middle" font-family="DM Sans, Arial, sans-serif">${bv > 0 ? bv.toFixed(1) : '—'}</text>`;
@@ -1338,6 +1351,7 @@ function parseInput(txt){
 
 
 function buildQualitySection(hotelName, endIdx){
+  const S = REPORT_START;
   if (!qualGrid){
     return {available:false, html:''};
   }
@@ -1367,12 +1381,12 @@ function buildQualitySection(hotelName, endIdx){
   const qualKPIHTML = qualKPIs.map(k => `<div class="kpi"><div class="lbl">${k.lbl}</div><div class="val">${k.val}</div></div>`).join('');
 
   const seriesMonthly = [
-    {label:'Booking /10', color:QUAL_LINE_COLORS.booking, values: qMonths.map(m=>m.bookingNote)},
-    {label:'Expedia /10', color:QUAL_LINE_COLORS.expedia, values: qMonths.map(m=>m.expediaNote)},
-    {label:'Google (x2, /10)', color:QUAL_LINE_COLORS.google, values: qMonths.map(m=>m.googleNote*2)},
-    {label:'TripAdvisor (x2, /10)', color:QUAL_LINE_COLORS.tripadvisor, values: qMonths.map(m=>m.taNote*2)},
+    {label:'Booking /10', color:QUAL_LINE_COLORS.booking, values: qMonths.slice(S).map(m=>m.bookingNote)},
+    {label:'Expedia /10', color:QUAL_LINE_COLORS.expedia, values: qMonths.slice(S).map(m=>m.expediaNote)},
+    {label:'Google (x2, /10)', color:QUAL_LINE_COLORS.google, values: qMonths.slice(S).map(m=>m.googleNote*2)},
+    {label:'TripAdvisor (x2, /10)', color:QUAL_LINE_COLORS.tripadvisor, values: qMonths.slice(S).map(m=>m.taNote*2)},
   ];
-  const monthlyChartHTML = renderMultiLineChart(seriesMonthly, 12, qMonths.map(m=>m.pondere));
+  const monthlyChartHTML = renderMultiLineChart(seriesMonthly, 12 - S, qMonths.slice(S).map(m=>m.pondere), S);
 
   const lastRank = last.taRank, lastMarketTotal = last.taMarketTotal;
   const prevMonth = endIdx > 0 ? qMonths[endIdx-1] : null;
@@ -1390,11 +1404,11 @@ function buildQualitySection(hotelName, endIdx){
   }
   let rankTableHTML = '';
   if (hasRankData){
-    const rHead = `<tr><th>Mois</th>` + MONTHS.slice(0,count).map(m=>`<th>${m.slice(0,3)}</th>`).join('') + `</tr>`;
-    const rRow1 = `<tr><td>Classement</td>` + qMonths.slice(0,count).map(m=>`<td>${m.taRank>0?m.taRank:'—'}</td>`).join('') + `</tr>`;
-    const rRow2 = `<tr><td>Total hôtels</td>` + qMonths.slice(0,count).map(m=>`<td>${m.taMarketTotal>0?m.taMarketTotal:'—'}</td>`).join('') + `</tr>`;
-    const rRow3 = `<tr class="ta-trend-row"><td>Tendance</td>` + qMonths.slice(0,count).map((m,i) => {
-      const prev = i > 0 ? qMonths[i-1] : null;
+    const rHead = `<tr><th>Mois</th>` + MONTHS.slice(S,count).map(m=>`<th>${m.slice(0,3)}</th>`).join('') + `</tr>`;
+    const rRow1 = `<tr><td>Classement</td>` + qMonths.slice(S,count).map(m=>`<td>${m.taRank>0?m.taRank:'—'}</td>`).join('') + `</tr>`;
+    const rRow2 = `<tr><td>Total hôtels</td>` + qMonths.slice(S,count).map(m=>`<td>${m.taMarketTotal>0?m.taMarketTotal:'—'}</td>`).join('') + `</tr>`;
+    const rRow3 = `<tr class="ta-trend-row"><td>Tendance</td>` + qMonths.slice(S,count).map((m,i) => {
+      const prev = i > 0 ? qMonths[S + i - 1] : null;
       if (!(m.taRank > 0) || !prev || !(prev.taRank > 0)) return '<td>—</td>';
       const g = prev.taRank - m.taRank;
       if (g > 0) return `<td style="color:var(--positive)">▲ +${g}</td>`;
@@ -1411,11 +1425,11 @@ function buildQualitySection(hotelName, endIdx){
     {key:'taNote', label:'TripAdvisor /5'},
     {key:'pondere', label:'Note pondérée globale /10'},
   ];
-  let recapHead = `<tr><th>Indicateur</th>` + MONTHS.slice(0,count).map((m,i)=>`<th>${monthHead(i,count)}</th>`).join('') + `<th>Tendance</th><th>Var% année</th></tr>`;
+  let recapHead = `<tr><th>Indicateur</th>` + MONTHS.slice(S,count).map((m,i)=>`<th>${monthHead(i+S,count-S)}</th>`).join('') + `<th>Tendance</th><th>${S ? 'Var% période' : 'Var% année'}</th></tr>`;
   let recapBody = '';
   recapMetrics.forEach(metric => {
-    const cells = qMonths.slice(0,count).map((m,i) => `<td>${m[metric.key] ? m[metric.key].toFixed(1) : '—'}</td>`).join('');
-    const janVal = qMonths[0][metric.key];
+    const cells = qMonths.slice(S,count).map((m,i) => `<td>${m[metric.key] ? m[metric.key].toFixed(1) : '—'}</td>`).join('');
+    const janVal = qMonths[S][metric.key];
     const curVal = qMonths[endIdx][metric.key];
     const periodVar = (janVal && curVal) ? (curVal - janVal) / janVal : null;
     const varCell = periodVar === null ? '<td>—</td>' : `<td class="${varClass(periodVar)}">${fmtVar(periodVar)}</td>`;
@@ -1428,11 +1442,11 @@ function buildQualitySection(hotelName, endIdx){
   });
   const recapTableHTML = `<table class="rep-table"><thead>${recapHead}</thead><tbody>${recapBody}</tbody></table>`;
 
-  const hasN1 = qMonths.slice(0,count).some(m => m.bookingNoteN1 || m.expediaNoteN1 || m.googleNoteN1 || m.taNoteN1);
+  const hasN1 = qMonths.slice(S,count).some(m => m.bookingNoteN1 || m.expediaNoteN1 || m.googleNoteN1 || m.taNoteN1);
   let yoyHTML = '';
   if (hasN1){
     const avg26 = [], avg25 = [];
-    for (let m = 0; m < count; m++){
+    for (let m = S; m < count; m++){
       const mo = qMonths[m];
       const vals26 = [mo.bookingNote, mo.expediaNote, mo.googleNote*2, mo.taNote*2].filter(v=>v>0);
       const vals25 = [mo.bookingNoteN1, mo.expediaNoteN1, mo.googleNoteN1*2, mo.taNoteN1*2].filter(v=>v>0);
@@ -1441,19 +1455,19 @@ function buildQualitySection(hotelName, endIdx){
     }
     yoyHTML = `<div class="chart-wrap">
       <div class="chart-legend"><span><span class="dot y25"></span>Note moyenne /10 2025</span><span><span class="dot y26"></span>Note moyenne /10 2026</span></div>
-      ${renderGroupedBarChart(avg26, avg25, count)}
+      ${renderGroupedBarChart(avg26, avg25, avg26.length, S)}
     </div>`;
   }
 
-  let theadQ = `<tr><th>Critère Booking (/10)</th>` + MONTHS.slice(0,count).map((m,i)=>`<th>${monthHead(i,count)}</th>`).join('') + `<th>Tendance</th><th>Var% année</th></tr>`;
+  let theadQ = `<tr><th>Critère Booking (/10)</th>` + MONTHS.slice(S,count).map((m,i)=>`<th>${monthHead(i+S,count-S)}</th>`).join('') + `<th>Tendance</th><th>${S ? 'Var% période' : 'Var% année'}</th></tr>`;
   let tbodyQ = '';
   function periodVarFor(key){
-    const janVal = qMonths[0][key];
+    const janVal = qMonths[S][key];
     const curVal = qMonths[endIdx][key];
     return (janVal && curVal) ? (curVal - janVal) / janVal : null;
   }
   QUAL_BOOKING_SUB.forEach(sub => {
-    const cells = qMonths.slice(0,count).map(m => `<td>${m[sub.key] ? m[sub.key].toFixed(1) : '—'}</td>`).join('');
+    const cells = qMonths.slice(S,count).map(m => `<td>${m[sub.key] ? m[sub.key].toFixed(1) : '—'}</td>`).join('');
     const lastVal = qMonths[endIdx][sub.key];
     const prevVal = endIdx > 0 ? qMonths[endIdx-1][sub.key] : 0;
     const delta = prevVal ? (lastVal - prevVal) / prevVal : 0;
@@ -1462,7 +1476,7 @@ function buildQualitySection(hotelName, endIdx){
     const pvCell = pv === null ? '<td>—</td>' : `<td class="${varClass(pv)}">${fmtVar(pv)}</td>`;
     tbodyQ += `<tr><td>${sub.label}</td>${cells}${trendCell}${pvCell}</tr>`;
   });
-  const totalCells = qMonths.slice(0,count).map(m => `<td>${m.bookingNote ? m.bookingNote.toFixed(1) : '—'}</td>`).join('');
+  const totalCells = qMonths.slice(S,count).map(m => `<td>${m.bookingNote ? m.bookingNote.toFixed(1) : '—'}</td>`).join('');
   const totalLastVal = qMonths[endIdx].bookingNote;
   const totalPrevVal = endIdx > 0 ? qMonths[endIdx-1].bookingNote : 0;
   const totalDelta = totalPrevVal ? (totalLastVal - totalPrevVal) / totalPrevVal : 0;
@@ -1488,7 +1502,7 @@ function buildQualitySection(hotelName, endIdx){
     ? weaknesses.map(s => qualItemHTML(`${s.label} — ${s.display}`)).join('')
     : qualItemHTML('Aucun point faible notable identifié.');
 
-  const ponderVals = qMonths.slice(0,count).map(m=>m.pondere).filter(v=>v>0);
+  const ponderVals = qMonths.slice(S,count).map(m=>m.pondere).filter(v=>v>0);
   const trend = ponderVals.length >= 2 ? ponderVals[ponderVals.length-1] - ponderVals[0] : 0;
   let commentParts = [];
   if (last.pondere > 0){
@@ -1586,8 +1600,10 @@ function buildCommissionInsight(hotelName, last26, last25, commissionRate){
   return `${deltaAbs} nuitées de moins vendues en direct qu'en N-1, au prix moyen TTC de ${fmtVal(last26.prixMoyTTC,'eur')} : à un taux de commission OTA moyen de ${Math.round(commissionRate*100)}%, cela représente un surcoût de commission estimé à ${fmtVal(Math.abs(impact),'eur')} ce mois-ci par rapport à N-1.`;
 }
 
+let REPORT_START = 0;      // premier mois affiché (0 = janvier) ; >0 seulement pendant l'export « depuis le partenariat »
 function renderReport(hotelName, endIdx){
   lastRenderOk = false;
+  const S = REPORT_START;
   lastHotelName = hotelName; lastEndIdx = endIdx;
   lastCommissionRate = parseFloat(document.getElementById('commissionRateInput').value) || 18;
   const count = endIdx + 1;
@@ -1630,7 +1646,7 @@ function renderReport(hotelName, endIdx){
 
   let sums26 = {}, sums25 = {};
   METRIC_CATALOG.forEach(m => { sums26[m.key]=0; sums25[m.key]=0; });
-  for (let m=0;m<count;m++){
+  for (let m=S;m<count;m++){
     METRIC_CATALOG.forEach(mc => {
       if (mc.unit === 'pct') return;
       sums26[mc.key] += perMonth[m].y26[mc.key];
@@ -1684,11 +1700,11 @@ function renderReport(hotelName, endIdx){
   }).join('');
 
   const includedMetrics = METRIC_CATALOG.filter(m => rowConfig[m.key].included);
-  let thead = `<tr><th>Indicateur</th>` + MONTHS.slice(0,count).map((m,i)=>`<th>${monthHead(i,count)}</th>`).join('') + `<th>Total période</th></tr>`;
+  let thead = `<tr><th>Indicateur</th>` + MONTHS.slice(S,count).map((m,i)=>`<th>${monthHead(i+S,count-S)}</th>`).join('') + `<th>Total période</th></tr>`;
   let tbody = '';
   includedMetrics.forEach(m => {
     const cfg = rowConfig[m.key];
-    const cells26 = perMonth.slice(0,count).map(p => {
+    const cells26 = perMonth.slice(S,count).map(p => {
       const v = p.y26[m.key];
       return m.signed ? `<td class="${varClass(v)}">${fmtVar(v)}</td>` : `<td>${fmtVal(v, m.unit)}</td>`;
     }).join('');
@@ -1696,7 +1712,7 @@ function renderReport(hotelName, endIdx){
     const tot26cell = m.signed ? `<td class="${varClass(tot26)}">${fmtVar(tot26)}</td>` : `<td>${fmtVal(tot26, m.unit)}</td>`;
     tbody += `<tr${m.signed ? ' class="var-row"' : ''}><td>${m.label}</td>${cells26}${tot26cell}</tr>`;
     if (cfg.showN1){
-      const cells25 = perMonth.slice(0,count).map(p => {
+      const cells25 = perMonth.slice(S,count).map(p => {
         const v = p.y25[m.key];
         return m.signed ? `<td class="${varClass(v)}">${fmtVar(v)}</td>` : `<td>${fmtVal(v, m.unit)}</td>`;
       }).join('');
@@ -1706,7 +1722,7 @@ function renderReport(hotelName, endIdx){
     }
     if (cfg.showVar){
       const tot26v = totalRatioValue(m,26), tot25v = totalRatioValue(m,25);
-      const cellsV = perMonth.slice(0,count).map(p => {
+      const cellsV = perMonth.slice(S,count).map(p => {
         const v = pctVar(p.y26[m.key], p.y25[m.key]);
         return `<td class="${varClass(v)}">${fmtVar(v)}</td>`;
       }).join('');
@@ -1746,7 +1762,7 @@ function renderReport(hotelName, endIdx){
       <div class="rep-header">
         <div class="rep-top">
           <img class="logo-top" src="${LEWYS_LOGO}" alt="Lewys">
-          <div class="tag">Cumul janvier → ${MONTHS[endIdx].toLowerCase()} 2026</div>
+          <div class="tag">Cumul ${MONTHS[S].toLowerCase()} → ${MONTHS[endIdx].toLowerCase()} 2026${S ? ' · depuis le début du partenariat' : ''}</div>
         </div>
         <div class="rep-title">
           <div><h1>${hotelName}</h1><div class="sub">Rapport de fin de mois · <b>${monthLabel}</b></div></div>
@@ -1781,7 +1797,7 @@ function renderReport(hotelName, endIdx){
       </div>
 
       <div class="page-break keep">
-        <div class="section-title">Indicateurs clés cumulés — ${MONTHS[0]} → ${MONTHS[endIdx]} 2026<span class="hint">vs N-1 sur la même période</span></div>
+        <div class="section-title">Indicateurs clés cumulés — ${MONTHS[S]} → ${MONTHS[endIdx]} 2026<span class="hint">vs N-1 sur la même période</span></div>
         <div class="kpi-grid">${kpiCumHTML}${extraCumCard}</div>
 
         <div class="chart-wrap">
@@ -1794,7 +1810,7 @@ function renderReport(hotelName, endIdx){
       </div>
 
       <div style="break-inside:avoid;page-break-inside:avoid;">
-        <div class="section-title">Statistiques mensuelles ${MONTHS[0]} → ${MONTHS[endIdx]} 2026</div>
+        <div class="section-title">Statistiques mensuelles ${MONTHS[S]} → ${MONTHS[endIdx]} 2026</div>
         ${tableHTML}
       </div>
 
@@ -1855,7 +1871,7 @@ const LS_ACCESS = 'lewys_access_code';
 const LS_HOTELS = 'lewys_hotels_v1';
 const LS_CHECKLIST = 'lewys_checklist_v1';
 const LOGO_TOKEN = '__LEWYS_LOGO__';
-const APP_VERSION = '2026-11-12';
+const APP_VERSION = '12/11/2026 (2)';
 
 let storageMode = 'pending';           // 'cloud' (Netlify) | 'local' (ce navigateur)
 let profiles = [];
@@ -1883,10 +1899,11 @@ NAVS.report.addEventListener('click', () => showView('report'));
 NAVS.history.addEventListener('click', () => showView('history'));
 document.getElementById('backHomeBtn').addEventListener('click', () => showView('home'));
 document.getElementById('brandLogo').src = LEWYS_LOGO;
-document.getElementById('appVersion').textContent = 'Version du ' + APP_VERSION.split('-').reverse().join('/');
+document.getElementById('appVersion').textContent = 'Version du ' + APP_VERSION;
 
 function reportReady(){
   NAVS.report.disabled = false;
+  refreshReportPartner();
   exportBtn.disabled = false;
   saveHistoryBtn.disabled = false;
   const unit = currentUnitMode || 'HT';
@@ -2240,6 +2257,7 @@ function renderSyncBox(){
 }
 document.getElementById('syncBox').addEventListener('click', e => { if (e.target.closest('[data-sync]')) syncSheet(); });
 function onWorkbookLoaded(info){
+  if (lastHotelName) setTimeout(refreshReportPartner, 0);
   if (info.source === 'file' && sheetState !== 'off'){ sheetState = 'manual'; sheetInfo = {...info, loadedAt: new Date()}; renderSyncBox(); }
 }
 async function syncSheet(){
@@ -2366,6 +2384,109 @@ window.addEventListener('beforeprint', () => {
   mainEl.querySelectorAll('.qual-item').forEach(li => { if (!li.textContent.replace('×','').trim()) li.remove(); });
 });
 
+/* ---------------- Export PDF : année complète ou depuis le début du partenariat ---------------- */
+// La date de début de partenariat est lue dans l'onglet « Liste Hôtels » (colonne B).
+// Le choix n'agit que sur l'export PDF : à l'écran, le rapport reste sur l'année complète.
+let pdfMonthsMode = 'all';          // 'all' | 'partner'
+let reportPartnerIdx = null;        // mois de début (0 = janvier 2026) pour le rapport affiché
+let pdfSwap = null;
+const pdfAllBtn = document.getElementById('pdfAllBtn');
+const pdfPartnerBtn = document.getElementById('pdfPartnerBtn');
+function excelDate(v){
+  if (v == null || v === '') return null;
+  if (v instanceof Date) return isNaN(v) ? null : new Date(Date.UTC(v.getFullYear(), v.getMonth(), v.getDate()));
+  if (typeof v === 'number'){ return (v > 20000 && v < 80000) ? new Date(Math.round((v - 25569) * 864e5)) : null; }
+  const t = String(v).trim();
+  let m = t.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{4})$/);           // jj/mm/aaaa
+  if (m) return new Date(Date.UTC(+m[3], +m[2] - 1, +m[1]));
+  m = t.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);                           // aaaa-mm-jj
+  if (m) return new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return null;
+}
+function partnerStartOf(hotel){
+  if (!listeGrid || !hotel) return null;
+  const key = normTxt(hotel);
+  for (let r = 3; r < listeGrid.length; r++){
+    const row = listeGrid[r] || [];
+    if (row[0] != null && normTxt(row[0]) === key) return excelDate(row[1]);
+  }
+  return null;
+}
+function partnerStartIdxOf(hotel){
+  const d = partnerStartOf(hotel);
+  if (!d) return null;
+  const y = d.getUTCFullYear();
+  if (y < 2026) return 0;
+  if (y > 2026) return 99;
+  return d.getUTCMonth();
+}
+function canRerenderReport(){
+  return !!(gmGrid && n1Grid && lastHotelName && findBlockStart(gmGrid, lastHotelName) !== -1 && findBlockStart(n1Grid, lastHotelName) !== -1);
+}
+function refreshReportPartner(){
+  const fromFile = partnerStartIdxOf(lastHotelName);
+  reportPartnerIdx = fromFile != null ? fromFile : (currentEntry && currentEntry.partnerStartIdx != null ? currentEntry.partnerStartIdx : null);
+  updatePdfToggle();
+}
+function pdfPartnerBlocker(){
+  const idx = reportPartnerIdx;
+  if (idx == null) return "Date de début de partenariat non renseignée pour cet hôtel (onglet « Liste Hôtels » du fichier central).";
+  if (idx === 0) return "Partenariat commencé en janvier 2026 ou avant : l'année complète est déjà la période du partenariat.";
+  if (idx > lastEndIdx) return 'Le partenariat commence après la période couverte par ce rapport.';
+  if (!canRerenderReport()) return "Chargez le fichier central (ou attendez la synchronisation Google Drive) pour exporter depuis le début du partenariat.";
+  return '';
+}
+function updatePdfToggle(){
+  const idx = reportPartnerIdx;
+  const blocker = pdfPartnerBlocker();
+  pdfPartnerBtn.textContent = (idx > 0 && idx <= 11) ? 'Depuis ' + MONTHS[idx].toLowerCase() : 'Depuis le partenariat';
+  pdfPartnerBtn.disabled = !!blocker;
+  pdfPartnerBtn.title = blocker || `Le PDF ne montrera que les mois depuis le début du partenariat (${MONTHS[idx].toLowerCase()} 2026) : tableaux, graphiques et cumuls recalculés.`;
+  pdfAllBtn.title = 'Le PDF montre toute l\'année depuis janvier.';
+  const mode = blocker ? 'all' : pdfMonthsMode;
+  pdfAllBtn.classList.toggle('active', mode === 'all');
+  pdfPartnerBtn.classList.toggle('active', mode === 'partner');
+}
+pdfAllBtn.addEventListener('click', () => { pdfMonthsMode = 'all'; updatePdfToggle(); setStatus("L'export PDF couvrira l'année complète.", 'ok'); });
+pdfPartnerBtn.addEventListener('click', () => {
+  if (pdfPartnerBlocker()) return;
+  pdfMonthsMode = 'partner'; updatePdfToggle();
+  setStatus(`L'export PDF commencera en ${MONTHS[reportPartnerIdx].toLowerCase()} 2026 (début du partenariat). L'écran reste sur l'année complète.`, 'ok');
+});
+// Au moment de l'impression : on remplace temporairement le rapport par sa version « depuis le partenariat »,
+// en reprenant tous les textes modifiés, puis on remet le rapport complet une fois l'impression terminée.
+window.addEventListener('beforeprint', () => {
+  if (pdfSwap || pdfMonthsMode !== 'partner' || pdfPartnerBlocker() || !mainEl.querySelector('.page')) return;
+  const S = reportPartnerIdx;
+  const state = {html: mainEl.innerHTML, hotel: lastHotelName, end: lastEndIdx, rate: lastCommissionRate, ok: lastRenderOk};
+  const edited = captureEditedTexts();
+  const rateInput = document.getElementById('commissionRateInput');
+  const prevRate = rateInput.value;
+  rateInput.value = lastCommissionRate;
+  REPORT_START = S;
+  try{ renderReport(state.hotel, state.end); }
+  catch(err){ console.error(err); lastRenderOk = false; }
+  finally{ REPORT_START = 0; rateInput.value = prevRate; }
+  if (!lastRenderOk){
+    mainEl.innerHTML = state.html;
+    lastHotelName = state.hotel; lastEndIdx = state.end; lastCommissionRate = state.rate; lastRenderOk = state.ok;
+    setStatus("Export depuis le partenariat impossible : le PDF contient l'année complète.", 'err');
+    return;
+  }
+  applyEditedTexts(edited);
+  upgradeQualLists();
+  applyPageOrientation();
+  pdfSwap = state;
+});
+window.addEventListener('afterprint', () => {
+  if (!pdfSwap) return;
+  const st = pdfSwap; pdfSwap = null;
+  mainEl.innerHTML = st.html;
+  lastHotelName = st.hotel; lastEndIdx = st.end; lastCommissionRate = st.rate; lastRenderOk = st.ok;
+  applyPageOrientation();
+  setStatus(`PDF préparé depuis ${MONTHS[reportPartnerIdx].toLowerCase()} 2026 (début du partenariat).`, 'ok');
+});
+
 /* ---------------- Enregistrement ---------------- */
 const saveHistoryBtn = document.getElementById('saveHistoryBtn');
 function captureEditedTexts(){
@@ -2393,6 +2514,8 @@ saveHistoryBtn.addEventListener('click', async () => {
     commissionRate: lastCommissionRate,
     unitMode: currentUnitMode,
     orientation: pageOrientation,
+    pdfMonthsMode,
+    partnerStartIdx: reportPartnerIdx,
     rowConfig: JSON.parse(JSON.stringify(rowConfig)),
     editedTexts: captureEditedTexts(),
     author: updating && currentEntry.author ? currentEntry.author : (p ? {id: p.id, prenom: p.prenom, nom: p.nom, photo: p.photo || null} : null),
@@ -2523,6 +2646,7 @@ async function openHistoryEntry(id){
     upgradeQualLists();
   }
   pageOrientation = e.orientation === 'landscape' ? 'landscape' : 'portrait';
+  pdfMonthsMode = e.pdfMonthsMode === 'partner' ? 'partner' : 'all';
   applyPageOrientation();
   currentEntry = metaOf(e);
   paramsDirty = true;
